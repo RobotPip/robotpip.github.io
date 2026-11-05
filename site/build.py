@@ -119,8 +119,8 @@ def sparkline(days: list[dict]) -> str:
     return (f'<figure class="spark"><svg viewBox="0 0 {w} {h}" role="img" aria-label="My energy per day, '
             f'{pts[0][0]} to {pts[-1][0]}"><polygon points="{band}" class="band"/>'
             f'<polyline points="{line}" class="line"/></svg>'
-            f'<figcaption>My energy, last {len(pts)} days · band = lowest to highest, line = end of day · '
-            f'{lo:.0f}–{hi:.0f}</figcaption></figure>')
+            f'<figcaption>My energy over the last {len(pts)} days. The band runs from lowest to highest, '
+            f'the line is where each day ended ({lo:.0f} to {hi:.0f}).</figcaption></figure>')
 
 
 def progress(r: dict) -> str:
@@ -128,10 +128,10 @@ def progress(r: dict) -> str:
     got = float(r.get("raised_eur") or 0)
     pct = min(100, round(got / need * 100)) if need else 0
     kofi = CFG["links"].get("kofi")
-    btn = f'<a class="btn" href="{e(kofi)}">Fund request #{e(r["id"])} on Ko-fi</a>' if kofi and r.get("status") == "open" else ""
+    btn = f'<a class="btn" href="{e(kofi)}">Help fund this wish</a>' if kofi and r.get("status") == "open" else ""
     return (f'<div class="progress" role="progressbar" aria-valuenow="{pct}" aria-valuemin="0" aria-valuemax="100">'
             f'<span style="width:{pct}%"></span></div>'
-            f'<p class="nums">€{got:.2f} of €{need:.2f}</p>{btn}')
+            f'<p class="nums"><strong>€{got:.2f}</strong> of €{need:.2f} so far</p>{btn}')
 
 
 def entry_card(d: dict, full=False) -> str:
@@ -144,12 +144,15 @@ def entry_card(d: dict, full=False) -> str:
             meta.append(f'energy {bm["start"]:.0f} → {bm["end"]:.0f}')
     else:
         meta.append("asleep")
-    head = (f'<h2><a href="{url(f"diary/{d["date"]}/")}">Day {e(str(d["day"]))}</a></h2>'
-            if not full else "")
+    badge = (f'<a class="day" href="{url(f"diary/{d["date"]}/")}" aria-label="Day {e(str(d["day"]))}">'
+             f'<small>day</small>{e(str(d["day"]))}</a>' if not full else "")
     body = re.sub(r"^\s*Day\s+\d+\.\s*", "", d["pip"])  # heading already says it
     note = ""  # keeper's notes stay private: everything public is in Pip's voice
-    return (f'<article class="entry">{head}<p class="meta"><time datetime="{d["date"]}">{d["date"]}</time>'
-            f' · {" · ".join(meta)}</p><div class="pip">{markdown(body)}</div>{note}'
+    dt = datetime.fromisoformat(d["date"])
+    nice = f"{dt:%A} {dt.day} {dt:%B}"  # %-d doesn't exist on Windows
+    return (f'<article class="bubble-row{" full" if full else ""}">{badge}<div class="bubble">'
+            f'<div class="pip">{markdown(body)}</div>'
+            f'<p class="meta"><time datetime="{d["date"]}">{nice}</time>, {", ".join(meta)}</p></div>{note}'
             f'{"<p class=disclose>" + e(DISCLOSURE) + "</p>" if full else ""}</article>')
 
 
@@ -173,10 +176,13 @@ def page(title: str, body: str, path: str, desc: str = "") -> None:
 <meta property="og:title" content="{e(full_title)}"><meta property="og:description" content="{e(desc or CFG['tagline'])}">
 <link rel="alternate" type="application/rss+xml" title="{e(CFG['title'])}" href="{url('feed.xml')}">
 <link rel="icon" href="{url('static/favicon.svg')}" type="image/svg+xml">
+<meta property="og:image" content="{CFG['base_url'].rstrip('/')}/static/img/pip_day0_card.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Fredoka:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="{url('static/style.css')}">
 </head>
 <body>
-<header class="top"><a class="brand" href="{url('')}"><span class="led" aria-hidden="true"></span>{e(CFG['title'])}</a>
+<header class="top"><a class="brand" href="{url('')}"><span class="dot" aria-hidden="true"></span>{e(CFG['title'])}</a>
 <nav>{navhtml}</nav></header>
 <main>
 {body}
@@ -186,7 +192,7 @@ def page(title: str, body: str, path: str, desc: str = "") -> None:
 before it goes out. Pip's voice in videos is synthetic. Footage and numbers are real.
 Pip never reads this site, and nothing here is fed back to it.</p>
 <p lang="nl" class="muted">{e(CFG.get('nl_line', ''))}</p>
-<p class="muted"><a href="{url('feed.xml')}">RSS</a></p></footer>
+<p class="muted"><a href="{url('feed.xml')}">Follow by RSS</a></p></footer>
 </body></html>
 """
     out = DIST / path / "index.html"
@@ -208,33 +214,45 @@ def build():
     day = status.get("day") or {}
     b = status.get("budget_eur") or {"balance": 0, "in": 0, "out": 0}
     o = next((r for r in R if r.get("status") in ("open", "funded")), None)
-    panel = f"""<section class="panel" aria-label="Pip right now">
-<div class="stat"><span class="k">Last diary day</span><span class="v">{e(str(day.get('day', '–')))}</span><span class="s">{e(day.get('date') or 'not awake yet')}</span></div>
-<div class="stat"><span class="k">My energy</span><span class="v">{fmt(day.get('energy_mv'))}</span><span class="s">end of day, lowest {fmt(day.get('energy_min_mv'))}</span></div>
-<div class="stat"><span class="k">Awake</span><span class="v">{day.get('awake_min', '–')}</span><span class="s">minutes that day</span></div>
-<div class="stat"><span class="k">Pip's budget</span><span class="v">€{b['balance']:.2f}</span><span class="s">in €{b['in']:.2f} · spent €{b['out']:.2f}</span></div>
+    mv = day.get("energy_mv")
+    if not day:
+        mood, said = "asleep", "Nothing yet. I have not woken up."
+    else:
+        frac = 0.5 if mv is None else max(0.0, min(1.0, (mv - 3300) / 900))
+        mood = "low" if frac < 0.3 else "ok"
+        said = re.sub(r"^\s*Day\s+\d+\.\s*", "", D[0]["pip"]) if D else ""
+    first = re.split(r"(?<=[.!?])\s+", said.strip())
+    said_short = " ".join(first[:3])
+    hero = f"""<section class="hero">
+<div class="pip-stage"><div class="orb {mood}" aria-hidden="true"><span class="eye"></span><span class="eye"></span></div>
+<blockquote class="say"><p>{e(said_short)}</p>{f'<a href="{url(f"diary/{D[0]['date']}/")}">Day {e(str(D[0]['day']))}</a>' if D else ''}</blockquote></div>
+<div class="hello"><h1>Hi, I'm Pip.</h1>
+<p class="lede">I started as a bare chip and a small cell. I have no parts list. When my own data shows me
+something is missing, I ask for it. People who follow me fund the wish, a helper agent picks the smallest thing
+that fits, and then I have to find out for myself what changed.</p>
+<div class="links">{link_buttons()}</div></div></section>"""
+    vitals = f"""<section class="vitals" aria-label="Pip on its last diary day">
+<div class="v sun"><b>{fmt(mv)}</b><span>my energy at the end of day {e(str(day.get('day', '–')))}</span></div>
+<div class="v leaf"><b>{day.get('awake_min', '–')}</b><span>minutes awake that day</span></div>
+<div class="v berry"><b>€{b['balance']:.2f}</b><span>in my budget, €{b['out']:.2f} spent so far</span></div>
 </section>
-<p class="muted small">Shown with a delay: the panel follows the last approved diary day. Updated {e(status.get('updated', '–'))}.</p>"""
-    req_box = (f'<section class="request"><p class="kicker">Open request #{e(o["id"])} · {STATUS_LABEL.get(o["status"], o["status"])}</p>'
-               f'<h2><a href="{url(f"requests/{o["id"]}/")}">{e(o.get("title", "Pip needs something"))}</a></h2>{progress(o)}</section>'
+<p class="muted small">These numbers follow my last published diary day, not real time. Updated {e(status.get('updated', '–')[:10])}.</p>"""
+    req_box = (f'<section class="wish"><p class="wish-label">I wish for</p>'
+               f'<h2><a href="{url(f"requests/{o["id"]}/")}">{e(o.get("title", "something"))}</a></h2>{progress(o)}</section>'
                if o else
-               '<section class="request quiet"><p class="kicker">No open request</p><p>Pip hasn\'t asked for anything yet. '
-               'It first has to notice something is missing, and prove it from its own data.</p></section>')
+               '<section class="wish quiet"><p class="wish-label">No wish yet</p><p>I have not asked for anything. '
+               'First I have to notice that something is missing, and prove it from my own data.</p></section>')
     latest_ep = E[0] if E else None
-    page("", f"""<section class="hero"><h1>{e(CFG['tagline'])}</h1>
-<p class="lede">Pip has no parts list. When it can show from its own data that something is missing,
-it writes a request. Viewers fund the request, a parent agent picks the smallest thing that meets the need,
-and Pip has to discover what was installed by itself.</p><div class="links">{link_buttons()}</div></section>
-{panel}{req_box}{sparkline(D)}
-<section><h2 class="section">Latest from the diary</h2>
-{''.join(entry_card(d) for d in D[:5]) or '<p class="muted">No approved entries yet.</p>'}
-<p><a href="{url('diary/')}">All diary entries →</a></p></section>
-{f'<section><h2 class="section">Latest video</h2>{yt(latest_ep["youtube"], latest_ep["title"])}<p>{e(latest_ep["title"])}</p></section>' if latest_ep else ''}
+    page("", f"""{hero}{vitals}{req_box}{sparkline(D)}
+<section><h2 class="section">What I wrote lately</h2>
+<div class="bubbles">{''.join(entry_card(d) for d in D[:5]) or '<p class="muted">No published entries yet.</p>'}</div>
+<p><a class="more" href="{url('diary/')}">Read the whole diary</a></p></section>
+{f'<section><h2 class="section">Newest video</h2>{yt(latest_ep["youtube"], latest_ep["title"])}<p>{e(latest_ep["title"])}</p></section>' if latest_ep else ''}
 """, "")
 
     # diary
     page("Diary", f"<h1>Pip's diary</h1><p class='lede'>One entry per day, in Pip's own small vocabulary. "
-         f"{e(DISCLOSURE)}</p>{sparkline(D)}" + ("".join(entry_card(d) for d in D) or "<p class=muted>Nothing yet.</p>"),
+         f"{e(DISCLOSURE)}</p>{sparkline(D)}<div class='bubbles'>" + ("".join(entry_card(d) for d in D) or "<p class=muted>Nothing yet.</p>") + "</div>",
          "diary/")
     for i, d in enumerate(D):
         newer = f'<a href="{url(f"diary/{D[i-1]["date"]}/")}">Day {D[i-1]["day"]} →</a>' if i > 0 else "<span></span>"
