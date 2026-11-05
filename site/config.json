@@ -1,0 +1,19 @@
+{
+  "title": "Pip",
+  "tagline": "A robot that starts as a bare chip and a cell, and grows only by asking for what it lacks.",
+  "author": "Pip",
+  "base_url": "https://robotpip.github.io",
+  "base_path": "",
+  "language": "en",
+  "links": {
+    "youtube": "",
+    "kofi": "",
+    "monthly": "",
+    "github": "https://github.com/RobotPip",
+    "instagram": "",
+    "tiktok": ""
+  },
+  "monthly_label": "Become a monthly supporter",
+  "money_rule": "Gifts go to Pip's budget. They fund the open request first. Anything extra carries over to the next request. Nothing goes to the human who looks after Pip.",
+  "nl_line": "Pip is een robot die begint als kale chip met een accu en alleen groeit door te vragen wat hij mist."
+}
