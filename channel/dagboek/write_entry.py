@@ -119,6 +119,39 @@ def build_prompt(facts: dict, feedback: list[str] | None = None) -> str:
     return p
 
 
+def ensure_ollama(model: str) -> None:
+    """Start the Ollama server if it isn't running, and check the model is pulled."""
+    import shutil
+    import subprocess
+    import time
+
+    def tags():
+        with urllib.request.urlopen(f"{OLLAMA}/api/tags", timeout=3) as r:
+            return [m["name"] for m in json.loads(r.read()).get("models", [])]
+    try:
+        names = tags()
+    except (urllib.error.URLError, OSError):
+        exe = shutil.which("ollama") or os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe")
+        if not os.path.exists(exe):
+            sys.exit("Ollama isn't installed (or not on PATH). Get it from https://ollama.com/download")
+        print("Starting Ollama...")
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+        subprocess.Popen([exe, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+        for _ in range(30):
+            time.sleep(1)
+            try:
+                names = tags()
+                break
+            except (urllib.error.URLError, OSError):
+                pass
+        else:
+            sys.exit("Started Ollama, but it didn't answer within 30 seconds. Try again, or open the Ollama app.")
+    want = model if ":" in model else model + ":latest"
+    if want not in names:
+        sys.exit(f"The model {model} isn't downloaded yet. Run:  ollama pull {model}\n"
+                 f"(downloaded now: {', '.join(names) or 'none'})")
+
+
 def ask_model(prompt: str, model: str) -> str:
     body = json.dumps({"model": model, "prompt": prompt, "stream": False,
                        "options": {"temperature": 0.7}}).encode()
@@ -155,6 +188,7 @@ def main():
         print(build_prompt(facts))
         return
 
+    ensure_ollama(a.model)
     feedback, text = None, ""
     for attempt in range(1, a.tries + 1):
         text = ask_model(build_prompt(facts, feedback), a.model)

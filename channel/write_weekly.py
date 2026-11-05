@@ -26,7 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "dagboek"))
 from common import CHANNEL, DAGBOEK, load_json, read_post, write_post  # noqa: E402
-from write_entry import MODEL, ask_model, check  # noqa: E402
+from write_entry import MODEL, ask_model, check, ensure_ollama  # noqa: E402
 
 
 def week(end: date) -> list[dict]:
@@ -99,6 +99,7 @@ def main():
         print(build_prompt(days, s))
         return
 
+    ensure_ollama(a.model)
     fb, text = None, ""
     for i in range(1, a.tries + 1):
         text = ask_model(build_prompt(days, s, fb), a.model)
