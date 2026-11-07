@@ -1,0 +1,53 @@
+{
+  "id": "001",
+  "created": "2026-11-07T02:30:31+01:00",
+  "status": "open",
+  "drive": "survival",
+  "about_channel": "battery_mv",
+  "missing": "A way to change my battery_mv. It only goes down, and nothing I do changes that.",
+  "evidence": [
+    "Over 18.4 awake hours my battery_mv fell by 21.4 per hour.",
+    "It is now 3542. At this rate it reaches 3300 in about 11 awake hours.",
+    "None of my actions has ever made it go up."
+  ],
+  "constraints": {
+    "free_pins": [
+      "gpio21_sda",
+      "gpio22_scl",
+      "gpio34",
+      "gpio36",
+      "gpio39"
+    ],
+    "logic_voltage": 3.3,
+    "spare_current_mA": null,
+    "weight_budget_g": null,
+    "energy_drain_mv_per_awake_hour": 21.4,
+    "channels": [
+      "rssi",
+      "temp_c",
+      "battery_mv",
+      "touch_gpio4",
+      "touch_gpio15",
+      "touch_gpio13",
+      "touch_gpio12",
+      "touch_gpio14",
+      "touch_gpio27",
+      "touch_gpio33",
+      "touch_gpio32",
+      "adc_gpio34",
+      "adc_gpio36",
+      "adc_gpio39",
+      "i2c",
+      "led"
+    ],
+    "actions": [
+      "led"
+    ]
+  },
+  "success_criterion": "One of my actions clearly changes my battery_mv (my brain's verdict becomes 'I can change this').",
+  "success_target": {
+    "channel": "battery_mv",
+    "verdict": "mine"
+  },
+  "budget_eur": null
+}

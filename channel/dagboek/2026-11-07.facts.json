@@ -1,0 +1,329 @@
+{
+  "date": "2026-11-07",
+  "day": 1,
+  "awake": true,
+  "sessions": 25,
+  "disconnects": 24,
+  "awake_min": 463,
+  "awake_h": 7,
+  "awake_rest_min": 43,
+  "first_seen": "00:00",
+  "last_seen": "10:09",
+  "touch_events": 1,
+  "touch_by_pin": {
+    "touch_gpio15": 1
+  },
+  "values": {
+    "adc_gpio34": {
+      "start": 144.0,
+      "end": 784.0,
+      "min": 0.0,
+      "min_at": "07:14",
+      "max": 2703.0,
+      "max_at": "08:42",
+      "biggest_jump": 2703.0
+    },
+    "adc_gpio36": {
+      "start": 0.0,
+      "end": 112.0,
+      "min": 0.0,
+      "min_at": "00:00",
+      "max": 1641.0,
+      "max_at": "08:42",
+      "biggest_jump": 1641.0
+    },
+    "adc_gpio39": {
+      "start": 0.0,
+      "end": 98.0,
+      "min": 0.0,
+      "min_at": "00:00",
+      "max": 1424.0,
+      "max_at": "08:42",
+      "biggest_jump": 1424.0
+    },
+    "battery_mv": {
+      "start": 3612.0,
+      "end": 3786.0,
+      "min": 284.0,
+      "min_at": "08:55",
+      "max": 6236.0,
+      "max_at": "08:55",
+      "biggest_jump": 5952.0
+    },
+    "in_gpio34": {
+      "start": 0.0,
+      "end": 0.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 0.0,
+      "max_at": "08:59",
+      "biggest_jump": 0.0
+    },
+    "in_gpio36": {
+      "start": 0.0,
+      "end": 0.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 0.0,
+      "max_at": "08:59",
+      "biggest_jump": 0.0
+    },
+    "in_gpio39": {
+      "start": 0.0,
+      "end": 0.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 0.0,
+      "max_at": "08:59",
+      "biggest_jump": 0.0
+    },
+    "led": {
+      "start": 128.0,
+      "end": 0.0,
+      "min": 0.0,
+      "min_at": "00:00",
+      "max": 255.0,
+      "max_at": "00:00",
+      "biggest_jump": 255.0
+    },
+    "out_gpio16": {
+      "start": 0.0,
+      "end": 1.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 1.0,
+      "max_at": "09:00",
+      "biggest_jump": 1.0
+    },
+    "out_gpio17": {
+      "start": 0.0,
+      "end": 1.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 1.0,
+      "max_at": "08:59",
+      "biggest_jump": 1.0
+    },
+    "out_gpio18": {
+      "start": 0.0,
+      "end": 1.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 1.0,
+      "max_at": "09:00",
+      "biggest_jump": 1.0
+    },
+    "out_gpio19": {
+      "start": 0.0,
+      "end": 0.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 1.0,
+      "max_at": "09:00",
+      "biggest_jump": 1.0
+    },
+    "out_gpio23": {
+      "start": 0.0,
+      "end": 0.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 1.0,
+      "max_at": "09:01",
+      "biggest_jump": 1.0
+    },
+    "out_gpio25": {
+      "start": 0.0,
+      "end": 1.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 1.0,
+      "max_at": "09:01",
+      "biggest_jump": 1.0
+    },
+    "out_gpio26": {
+      "start": 0.0,
+      "end": 1.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 1.0,
+      "max_at": "09:01",
+      "biggest_jump": 1.0
+    },
+    "out_gpio5": {
+      "start": 0.0,
+      "end": 1.0,
+      "min": 0.0,
+      "min_at": "08:59",
+      "max": 1.0,
+      "max_at": "09:00",
+      "biggest_jump": 1.0
+    },
+    "rssi": {
+      "start": -48.0,
+      "end": -100.0,
+      "min": -124.0,
+      "min_at": "04:11",
+      "max": -37.0,
+      "max_at": "09:00",
+      "biggest_jump": 76.0
+    },
+    "temp_c": {
+      "start": 58.9,
+      "end": 58.3,
+      "min": 52.8,
+      "min_at": "07:21",
+      "max": 60.6,
+      "max_at": "00:06",
+      "biggest_jump": 6.1
+    },
+    "touch_gpio12": {
+      "start": 117.0,
+      "end": 118.0,
+      "min": 113.0,
+      "min_at": "00:01",
+      "max": 123.0,
+      "max_at": "07:42",
+      "biggest_jump": 9.0
+    },
+    "touch_gpio13": {
+      "start": 108.0,
+      "end": 108.0,
+      "min": 107.0,
+      "min_at": "00:00",
+      "max": 110.0,
+      "max_at": "02:17",
+      "biggest_jump": 2.0
+    },
+    "touch_gpio14": {
+      "start": 116.0,
+      "end": 118.0,
+      "min": 113.0,
+      "min_at": "00:00",
+      "max": 123.0,
+      "max_at": "03:39",
+      "biggest_jump": 9.0
+    },
+    "touch_gpio15": {
+      "start": 98.0,
+      "end": 98.0,
+      "min": 11.0,
+      "min_at": "09:00",
+      "max": 99.0,
+      "max_at": "00:00",
+      "biggest_jump": 87.0
+    },
+    "touch_gpio27": {
+      "start": 122.0,
+      "end": 123.0,
+      "min": 120.0,
+      "min_at": "01:15",
+      "max": 125.0,
+      "max_at": "00:00",
+      "biggest_jump": 4.0
+    },
+    "touch_gpio32": {
+      "start": 139.0,
+      "end": 143.0,
+      "min": 137.0,
+      "min_at": "00:00",
+      "max": 144.0,
+      "max_at": "08:55",
+      "biggest_jump": 6.0
+    },
+    "touch_gpio33": {
+      "start": 140.0,
+      "end": 143.0,
+      "min": 137.0,
+      "min_at": "00:00",
+      "max": 144.0,
+      "max_at": "08:55",
+      "biggest_jump": 6.0
+    },
+    "touch_gpio4": {
+      "start": 107.0,
+      "end": 107.0,
+      "min": 103.0,
+      "min_at": "09:46",
+      "max": 108.0,
+      "max_at": "01:08",
+      "biggest_jump": 4.0
+    }
+  },
+  "channels": [
+    "adc_gpio34",
+    "adc_gpio36",
+    "adc_gpio39",
+    "battery_mv",
+    "i2c",
+    "in_gpio34",
+    "in_gpio36",
+    "in_gpio39",
+    "led",
+    "out_gpio16",
+    "out_gpio17",
+    "out_gpio18",
+    "out_gpio19",
+    "out_gpio23",
+    "out_gpio25",
+    "out_gpio26",
+    "out_gpio5",
+    "rssi",
+    "temp_c",
+    "touch_gpio12",
+    "touch_gpio13",
+    "touch_gpio14",
+    "touch_gpio15",
+    "touch_gpio27",
+    "touch_gpio32",
+    "touch_gpio33",
+    "touch_gpio4"
+  ],
+  "new_channels": [],
+  "surprises": [
+    {
+      "at": "02:28",
+      "in": [
+        "adc_gpio36",
+        "adc_gpio39",
+        "temp_c"
+      ],
+      "size": 8701.4
+    },
+    {
+      "at": "01:49",
+      "in": [
+        "adc_gpio36",
+        "adc_gpio39",
+        "temp_c"
+      ],
+      "size": 7892.3
+    },
+    {
+      "at": "02:25",
+      "in": [
+        "adc_gpio36",
+        "adc_gpio39",
+        "temp_c"
+      ],
+      "size": 7360.9
+    },
+    {
+      "at": "02:23",
+      "in": [
+        "adc_gpio36",
+        "adc_gpio39",
+        "temp_c"
+      ],
+      "size": 6765.6
+    },
+    {
+      "at": "02:19",
+      "in": [
+        "adc_gpio36",
+        "adc_gpio39",
+        "temp_c"
+      ],
+      "size": 6091.8
+    }
+  ]
+}

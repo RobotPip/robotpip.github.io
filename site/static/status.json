@@ -1,11 +1,11 @@
 {
-  "updated": "2026-11-06T22:01+01:00",
+  "updated": "2026-11-07T10:10+01:00",
   "day": {
-    "date": "2026-11-06",
+    "date": "2026-11-07",
     "day": 1,
-    "awake_min": 0,
-    "energy_mv": null,
-    "energy_min_mv": null
+    "awake_min": 463,
+    "energy_mv": 3786.0,
+    "energy_min_mv": 284.0
   },
   "open_request": null,
   "budget_eur": {

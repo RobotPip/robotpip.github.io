@@ -1,68 +1,182 @@
-"""Step 1 of the diary: logs -> facts.json. Plain arithmetic, no AI.
+"""Step 1 of the diary: Pip's memory -> facts.json. Plain arithmetic, no AI.
 
     python channel/dagboek/make_facts.py            # yesterday (for the nightly run after midnight)
     python channel/dagboek/make_facts.py 2026-11-06 # a specific day
     python channel/dagboek/make_facts.py today
 
-Reads logs/*-sense.csv (+ *-manifest.json) and writes channel/dagboek/YYYY-MM-DD.facts.json.
+Reads logs/pip.db (the bridge's database, read-only, via pipdb.py) and writes
+channel/dagboek/YYYY-MM-DD.facts.json. Falls back to the old logs/*-sense.csv files only
+when the database has nothing for that day.
 
-The CSV reader is deliberately forgiving because the bridge's log format will grow:
-- the time column may be called ts / timestamp / time / t / pc_time / datetime,
-  holding ISO text or epoch seconds/milliseconds;
-- any other numeric column becomes a "channel" and gets min/max/start/end;
-- columns named touch* count as touch events whenever the value changes.
-Rows are assigned to a day by their own timestamp (local time), not by file name.
+A day is a local calendar day (frames are stored as UTC epoch ms). The database holds
+~20 frames/s, so everything is computed in one streaming pass: per channel start/end/min/max,
+biggest jump and (for touch pins) the number of touches. Touch pins give raw capacitance;
+a touch is a fall below TOUCH_DROP x the pin's median.
 """
 from __future__ import annotations
 
 import csv
 import sys
-from datetime import date, datetime, timedelta
+from array import array
+from datetime import date, datetime, time as dtime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from common import DAGBOEK, LOGS, CHANNEL, load_json, save_json  # noqa: E402
+from common import DAGBOEK, LOGS, CHANNEL, PIP, load_json, save_json  # noqa: E402
 
 TIME_COLS = ("ts", "timestamp", "time", "t", "pc_time", "datetime")
 CLOCK_COLS = ("t_ms", "ms", "millis", "uptime_ms")  # Pip's own clock, not a sense
 TOUCH_DROP = 0.6  # a touch pin "jumps" when it falls below 60% of its usual (median) value
-GAP_S = 30  # a silence longer than this inside a log counts as a disconnect
+GAP_S = 30  # a silence longer than this inside a session counts as a disconnect
 
 
-def parse_time(v: str) -> datetime | None:
-    v = (v or "").strip()
-    if not v:
+def hm(ts_s: float) -> str:
+    return datetime.fromtimestamp(ts_s).strftime("%H:%M")
+
+
+def num(v):
+    if v is None or isinstance(v, bool):
         return None
-    try:
-        x = float(v)
-        if x > 1e12:  # milliseconds
-            x /= 1000
-        if x < 1e8:   # seconds since boot, not a wall-clock time
-            return None
-        return datetime.fromtimestamp(x)
-    except ValueError:
-        pass
-    try:
-        dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
-        return dt.astimezone().replace(tzinfo=None) if dt.tzinfo else dt
-    except ValueError:
-        return None
-
-
-def to_num(v: str):
+    if isinstance(v, (int, float)):
+        return float(v)
     try:
         return float(v)
     except (TypeError, ValueError):
         return None
 
 
-def hm(dt: datetime) -> str:
-    return dt.strftime("%H:%M")
+# ---------------------------------------------------------------- streaming statistics
+class Day:
+    """Collects one day's facts from frames fed in time order, session by session."""
+
+    def __init__(self):
+        self.sessions: list[dict] = []
+        self.channels: set[str] = set()
+        self.stats: dict[str, dict] = {}
+        self.touch: dict[str, array] = {}
+        self.gaps = 0
+        self._last_ts = None
+
+    def begin(self, name: str, fields: list[str]):
+        self.sessions.append({"name": name, "first": None, "last": None})
+        self.channels.update(f for f in fields if f and f not in CLOCK_COLS)
+        self._last_ts = None
+
+    def add(self, ts: float, fields: list[str], values) -> None:
+        """ts in epoch seconds; values in the same order as fields."""
+        s = self.sessions[-1]
+        if s["first"] is None:
+            s["first"] = ts
+        s["last"] = ts
+        if self._last_ts is not None and ts - self._last_ts > GAP_S:
+            self.gaps += 1
+        self._last_ts = ts
+        stats = self.stats
+        for k, v in zip(fields, values):
+            x = num(v)
+            if x is None:
+                continue
+            st = stats.get(k)
+            if st is None:
+                stats[k] = {"start": x, "end": x, "min": x, "min_t": ts, "max": x, "max_t": ts,
+                            "prev": x, "jump": 0.0}
+                if k.lower().startswith("touch"):
+                    self.touch[k] = array("f")
+            else:
+                st["end"] = x
+                if x < st["min"]:
+                    st["min"], st["min_t"] = x, ts
+                if x > st["max"]:
+                    st["max"], st["max_t"] = x, ts
+                j = abs(x - st["prev"])
+                if j > st["jump"]:
+                    st["jump"] = j
+                st["prev"] = x
+            if k in self.touch:
+                self.touch[k].append(x)
+
+    def touches(self) -> dict[str, int]:
+        out = {}
+        for k, vals in self.touch.items():
+            if not vals:
+                continue
+            sample = sorted(vals[:: max(1, len(vals) // 20000)])
+            base = sample[len(sample) // 2]
+            low, n = False, 0
+            for x in vals:
+                if not low and x < base * TOUCH_DROP:
+                    low, n = True, n + 1
+                elif low and x > base * (TOUCH_DROP + 0.15):
+                    low = False
+            if n:
+                out[k] = n
+        return out
 
 
-def read_sessions(day: date) -> list[dict]:
-    """One session per CSV file that has rows on `day`."""
-    sessions = []
+# ---------------------------------------------------------------- sources
+def day_range_ms(day: date) -> tuple[int, int]:
+    t0 = datetime.combine(day, dtime.min).timestamp()
+    t1 = datetime.combine(day + timedelta(days=1), dtime.min).timestamp()
+    return int(t0 * 1000), int(t1 * 1000)
+
+
+def read_db(day: date) -> Day | None:
+    db = LOGS / "pip.db"
+    if not db.exists():
+        return None
+    sys.path.insert(0, str(PIP))
+    try:
+        import pipdb
+    except ImportError:
+        print("pipdb.py not found next to logs/; can't read pip.db")
+        return None
+    con = pipdb.connect(db, readonly=True)
+    try:
+        t0, t1 = day_range_ms(day)
+        sessions = pipdb.sessions_between(con, t0, t1)
+        if not sessions:
+            return None
+        cmap = pipdb.channel_map(con)
+        d = Day()
+        for s in sessions:
+            fields = [f for f in s["manifest"].get("fields", []) if f != "t_ms" and f in cmap]
+            d.begin(s["name"], fields)
+            col_sql = "".join(f', "{cmap[f]}"' for f in fields)
+            cur = con.execute(f"SELECT ts_ms{col_sql} FROM frames WHERE session_id=? AND ts_ms>=? AND ts_ms<? "
+                              f"ORDER BY ts_ms, rowid", (s["id"], t0, t1))
+            while True:
+                rows = cur.fetchmany(5000)
+                if not rows:
+                    break
+                for row in rows:
+                    d.add(row[0] / 1000, fields, row[1:])
+        return d
+    finally:
+        con.close()
+
+
+def parse_time(v: str) -> float | None:
+    v = (v or "").strip()
+    if not v:
+        return None
+    try:
+        x = float(v)
+        if x > 1e12:
+            x /= 1000
+        return x if x >= 1e8 else None   # below that it's seconds since boot
+    except ValueError:
+        pass
+    try:
+        dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        return dt.timestamp()
+    except ValueError:
+        return None
+
+
+def read_csv(day: date) -> Day | None:
+    """Old logs from before the database (logs/*-sense.csv)."""
+    t0, t1 = (x / 1000 for x in day_range_ms(day))
+    d = Day()
     for f in sorted(LOGS.glob("*-sense.csv")):
         with f.open(newline="", encoding="utf-8", errors="replace") as fh:
             reader = csv.DictReader(fh)
@@ -70,39 +184,24 @@ def read_sessions(day: date) -> list[dict]:
                 continue
             tcol = next((c for c in reader.fieldnames if c.strip().lower() in TIME_COLS), None)
             if not tcol:
-                print(f"skip {f.name}: no time column (expected one of {TIME_COLS})")
                 continue
+            fields = [c for c in reader.fieldnames if c != tcol and c not in CLOCK_COLS]
             rows = []
             for r in reader:
                 t = parse_time(r.get(tcol, ""))
-                if t and t.date() == day:
-                    rows.append((t, r))
+                if t is not None and t0 <= t < t1:
+                    rows.append((t, [r.get(c) for c in fields]))
         if rows:
             rows.sort(key=lambda x: x[0])
-            sessions.append({"file": f.name, "tcol": tcol, "rows": rows})
-    return sessions
+            m = load_json(LOGS / f.name.replace("-sense.csv", "-manifest.json"), {}) or {}
+            extra = [c for c in (m.get("fields") or []) if isinstance(c, str)]
+            d.begin(f.name, fields + extra)
+            for t, vals in rows:
+                d.add(t, fields, vals)
+    return d if d.sessions else None
 
 
-def manifest_channels(day: date, sessions: list[dict]) -> list[str]:
-    """Channel names Pip reported about itself in that day's manifests (plus CSV columns)."""
-    names: set[str] = set()
-    for s in sessions:
-        m = LOGS / s["file"].replace("-sense.csv", "-manifest.json")
-        data = load_json(m, {}) or {}
-        ch = data.get("fields") or data.get("channels") or []
-        if isinstance(ch, dict):
-            names.update(ch.keys())
-        elif isinstance(ch, list):
-            for c in ch:
-                names.add(c.get("name") if isinstance(c, dict) else str(c))
-        for col in s["rows"][0][1].keys():
-            if col != s["tcol"]:
-                names.add(col)
-    names -= set(CLOCK_COLS)
-    names.discard(None)
-    return sorted(n for n in names if n)
-
-
+# ---------------------------------------------------------------- facts
 def known_before(day: date) -> set[str]:
     known: set[str] = set()
     for f in DAGBOEK.glob("*.facts.json"):
@@ -126,82 +225,45 @@ def open_request() -> dict | None:
 
 
 def make_facts(day: date) -> dict:
-    sessions = read_sessions(day)
+    d = read_db(day) or read_csv(day)
     facts: dict = {"date": day.isoformat(), "day": day_number(day)}
-    if not sessions:
+    if not d:
         facts.update({"awake": False, "sessions": 0})
         return facts
 
-    awake_s, disconnects = 0.0, 0
-    series: dict[str, list[tuple[datetime, float]]] = {}
-    for s in sessions:
-        rows = s["rows"]
-        awake_s += (rows[-1][0] - rows[0][0]).total_seconds()
-        prev_t = None
-        for t, r in rows:
-            if prev_t and (t - prev_t).total_seconds() > GAP_S:
-                disconnects += 1
-            prev_t = t
-            for k, v in r.items():
-                if k == s["tcol"] or k in CLOCK_COLS:
-                    continue
-                x = to_num(v)
-                if x is None:
-                    continue
-                series.setdefault(k, []).append((t, x))
-
-    # touch pins give raw capacitance: count each fall below TOUCH_DROP x the pin's median as one jump
-    touch_by_pin = {}
-    for k, pts in series.items():
-        if not k.lower().startswith("touch"):
-            continue
-        vals = sorted(p[1] for p in pts)
-        base = vals[len(vals) // 2]
-        low, n = False, 0
-        for _, x in pts:
-            if not low and x < base * TOUCH_DROP:
-                low, n = True, n + 1
-            elif low and x > base * (TOUCH_DROP + 0.15):
-                low = False
-        if n:
-            touch_by_pin[k] = n
-    touch_events = sum(touch_by_pin.values())
-
+    awake_s = sum((s["last"] - s["first"]) for s in d.sessions if s["first"] is not None)
     awake_min = round(awake_s / 60)
+    touch_by_pin = d.touches()
     facts.update({
         "awake": True,
-        "sessions": len(sessions),
-        "disconnects": disconnects + max(0, len(sessions) - 1),
+        "sessions": len(d.sessions),
+        "disconnects": d.gaps + max(0, len(d.sessions) - 1),
         "awake_min": awake_min,
         "awake_h": awake_min // 60,
         "awake_rest_min": awake_min % 60,
-        "first_seen": hm(sessions[0]["rows"][0][0]),
-        "last_seen": hm(sessions[-1]["rows"][-1][0]),
-        "touch_events": touch_events,
+        "first_seen": hm(min(s["first"] for s in d.sessions if s["first"] is not None)),
+        "last_seen": hm(max(s["last"] for s in d.sessions if s["last"] is not None)),
+        "touch_events": sum(touch_by_pin.values()),
         "touch_by_pin": touch_by_pin,
         "values": {},
     })
-    for k, pts in sorted(series.items()):
-        vals = [p[1] for p in pts]
-        lo = min(pts, key=lambda p: p[1])
-        hi = max(pts, key=lambda p: p[1])
-        jumps = [abs(b[1] - a[1]) for a, b in zip(pts, pts[1:])]
+    for k, st in sorted(d.stats.items()):
         facts["values"][k] = {
-            "start": round(vals[0], 2), "end": round(vals[-1], 2),
-            "min": round(lo[1], 2), "min_at": hm(lo[0]),
-            "max": round(hi[1], 2), "max_at": hm(hi[0]),
-            "biggest_jump": round(max(jumps), 2) if jumps else 0,
+            "start": round(st["start"], 2), "end": round(st["end"], 2),
+            "min": round(st["min"], 2), "min_at": hm(st["min_t"]),
+            "max": round(st["max"], 2), "max_at": hm(st["max_t"]),
+            "biggest_jump": round(st["jump"], 2),
         }
 
-    channels = manifest_channels(day, sessions)
+    channels = sorted(d.channels)
     facts["channels"] = channels
     earlier = known_before(day)
     facts["new_channels"] = sorted(set(channels) - earlier) if earlier else []
 
-    # prediction-error spikes, once brain/ writes them: logs/YYYY-MM-DD-surprises.json
+    # prediction-error spikes from the brain: logs/YYYY-MM-DD-surprises.json, biggest first
     surprises = load_json(LOGS / f"{day.isoformat()}-surprises.json")
     if surprises:
-        facts["surprises"] = surprises[:5]
+        facts["surprises"] = sorted(surprises, key=lambda s: -float(s.get("size", 0)))[:5]
     req = open_request()
     if req:
         facts["open_request"] = req
